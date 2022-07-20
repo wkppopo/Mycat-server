@@ -1,0 +1,78 @@
+<?xml version="1.0"?>
+<!DOCTYPE mycat:schema SYSTEM "schema.dtd">
+<mycat:schema xmlns:mycat="http://io.mycat/">
+
+    <!--配置虚拟数据库-->
+    <!--name：虚拟逻辑数据库名称，对应server.xml中的schemas属性值-->
+    <!--dataNode：逻辑库中逻辑表的默认数据节点-->
+    <!--sqlMaxLimit：类似于SQL上添加limit，如schema为非分片库，则该属性无效-->
+    <schema name="userDB" checkSQLschema="true" sqlMaxLimit="500">
+        <!--配置虚拟逻辑表-->
+        <!--name：逻辑表名称，必须唯一-->
+        <!--dataNode：逻辑表所处的数据节点，值必须与dataNode标签中的name属性对应。如果值过多可以用$连接，如：dn$1-99,dn$200-400-->
+        <!--primaryKey：逻辑表对应的真实表的主键id的字段名-->
+<!--        <table name="tb_user" dataNode="localdn" primaryKey="user_id"/>-->
+<!--        <table name="tb_user" dataNode="localdn" primaryKey="user_id" subTables="tb_user$1-3" rule="mod-long" autoIncrement="true"/>-->
+        <table name="tb_user" dataNode="dn131,dn132" primaryKey="user_id" rule="sharding-by-intfile"/>
+    </schema>
+
+    <!--配置dataNode信息-->
+    <!--name：当前datanode名称-->
+    <!--dataHost：分片节点所处的节点主机，该值必须与dataHost标签中的name属性对应-->
+    <!--database：当前数据节点所对应的实际物理数据库-->
+    <dataNode name="dn131" dataHost="localdh131" database="java"/>
+    <dataNode name="dn132" dataHost="localdh132" database="java"/>
+
+    <!--配置节点主机-->
+    <!--balance：用于进行读操作指向，有三个值可选
+        0：所有读操作都发送到当前可用的writeHost上
+        1：所有读操作都随机的发送到readHost上
+        2：所有读操作都随机发送在writeHost与readHost上
+    -->
+    <!--maxCon：指定每个读写实例连接池的最大连接。也就是说，标签内嵌套的writeHost、readHost标签都会使用这个属性的值来实例化出连接池的最大连接数-->
+    <!--minCon：指定每个读写实例连接池的最小连接，初始化连接池的大小-->
+    <!--name：当前节点主机名称，不允许出现重复-->
+    <!--dbType：当时使用的数据库类型-->
+    <!--dbDriver：当前使用的数据库驱动-->
+    <!--writeType：用于写操作指向，有三个值可选
+        0：所有写操作都发送到可用的writeHost上
+        1：所有写操作都随机发送到readHost上
+        2：所有写操作都随机发送在writeHost与readHost上
+    -->
+    <!--readHost是从属于writeHost的，即意味着它从那个writeHost获取同步数据。
+        因此，当它所属的writeHost宕机了，则它也不会再参与到读写分离中来，即“不工作了”。这是因为此时，它的数据已经“不可靠”了。
+        基于这个考虑，目前mycat 1.3和1.4版本中，若想支持MySQL一主一从的标准配置，并且在主节点宕机的情况下，从节点还能读取数据。
+        则需要在Mycat里配置为两个writeHost并设置banlance=1。”-->
+    <!--switchType：设置节点切换操作，有三个值可选
+        -1：不自动切换
+        1：自动切换，默认值
+        2：基于mysql主从同步的状态决定是否切换
+    -->
+    <!--slaveThreshold：主从同步状态决定是否切换，延迟超过该值就不切换-->
+    <dataHost balance="0"
+              maxCon="100"
+              minCon="10"
+              name="localdh131"
+              dbType="mysql"
+              dbDriver="jdbc"
+              writeType="0"
+              switchType="1"
+              slaveThreshold="1000">
+        <!--查询心跳-->
+        <heartbeat>select user()</heartbeat>
+        <!--配置写节点实际物理数据库信息-->
+        <writeHost url="jdbc:mysql://192.168.2.131:3306" host="host1" password="123456" user="root">
+<!--            在写的host中配置读的host，实现读写分离-->
+            <readHost host="host1" url="jdbc:mysql://192.168.2.132:3306" password="123456" user="root"></readHost>
+        </writeHost>
+    </dataHost>
+    <dataHost balance="0" maxCon="100" minCon="10" name="localdh132" dbType="mysql" dbDriver="jdbc" writeType="0"
+              switchType="1" slaveThreshold="1000">
+        <!--查询心跳-->
+        <heartbeat>select user()</heartbeat>
+        <!--配置写节点实际物理数据库信息-->
+        <writeHost url="jdbc:mysql://192.168.2.134:3306" host="host1" password="123456" user="root">
+            <readHost host="host1" url="jdbc:mysql://192.168.2.135:3306" password="123456" user="root"></readHost>
+        </writeHost>
+    </dataHost>
+</mycat:schema>
